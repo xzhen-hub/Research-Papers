@@ -1,0 +1,1435 @@
+libname in "G:\Call report original from ssh\sas version";
+libname out "G:\CB var gen\CB_control";
+
+data out.call76(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call76;
+
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0400+rcfd0600+rcfd0900+rcfd0380;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+data out.call77(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call77;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0400+rcfd0600+rcfd0900+rcfd0380;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call78(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call78;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0400+rcfd0600+rcfd0900+rcfd0380;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call79(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call79;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0400+rcfd0600+rcfd0900+rcfd0380;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call80(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call80;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0400+rcfd0600+rcfd0900+rcfd0380;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call81(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call81;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0400+rcfd0600+rcfd0900+rcfd0380;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call82(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call82;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0400+rcfd0600+rcfd0900+rcfd0380;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call83(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call83;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0400+rcfd0600+rcfd0900+rcfd0380;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call84(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call84;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0390+rcfd2146;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+data out.call85(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call85;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0390+rcfd2146;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+data out.call86(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloanLLR ER) ;
+set in.call86;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0390+rcfd2146;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+data out.call87(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call87;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0390+rcfd2146;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+data out.call88(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call88;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0390+rcfd2146;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call89(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call89;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0390+rcfd2146;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+data out.call90(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call90;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0390+rcfd2146;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+data out.call91(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call91;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0390+rcfd2146;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+data out.call92(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call92;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0390+rcfd2146;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+data out.call93(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call93;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd0390+rcfd2146;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call94(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call94;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call95(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call95;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call96(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call96;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+data out.call97(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call97;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call98(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call98;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call99(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call99;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call00(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call00;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+data out.call01(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call01;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+
+data out.call02(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call02;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call03(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call03;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call04(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call04;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+data out.call05(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call05;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+data out.call06(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call06;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+
+data out.call07(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call07;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+data out.call08(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call08;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+data out.call09(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call09;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+data out.call10(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call10;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+data out.call11(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call11;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call12(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC  LLP_totloan LLR ER) ;
+set in.call12;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+
+
+data out.call13(keep=rssd9001 rssd9999 totassets log_asset HHIloan SEC INC LLP_totloan LLR ER) ;
+set in.call13;
+
+*total assets;
+totassets=RCFD2170;
+* Large bank, in excess of US$10bln;
+large=0;if RCFD2170>=10000000 then large=1;
+log_asset=log(totassets);
+
+* C&I loans;
+lci=RCFD1763+RCFD1764;if RCFD1764=. then lci=RCFD1763 ;if lci=. then lci=0 ;
+* Consumer loans;
+lcons=RCFD1978+RCFD1979+RCFD1975+RCFD2011;if lcons=. then lcons=0 ;
+*real estate loan;
+lreal= RCFD1410;if lreal=. then lreal=0 ;  
+* Agricultural loans;
+lagr=RCFD1590;if lagr=. then lagr=0 ;
+HHIloan=((lci/(lci+lcons+lreal+lagr))**2)+((lcons/(lci+lcons+lreal+lagr))**2)+((lreal/(lci+lcons+lreal+lagr))**2)+((lagr/(lci+lcons+lreal+lagr))**2); 
+
+* LOANS;
+totloans=RCFD1400;
+
+/*****securities*****/
+/***before 1984: rcfd0400+rcfd0600+rcfd0900+rcfd0380
+****betweem 1983 and 1994:rcfd0390+rcfd2146
+****after 1993: rcfd1754+rcfd1773*********/
+totalsec =rcfd1754+rcfd1773;
+SEC=(totalsec/totassets)*100;
+INC=(riad4010/riad4000)*100;
+LLP_totloan=(riad4230/totloans)*100;
+if LLP_totloan<0 & LLP_totloan^=. then LLP_totloan=0;
+LLR=(rcfd3123/totloans)*100;
+ER=(rcfd3210/rcfd2170)*100;
+run;
+
+
+data out.CBvar7613;
+set out.call76 out.call77 out.call78 out.call79 out.call80 out.call81 out.call82 out.call83 out.call84 out.call85 out.call86 out.call87 out.call88 out.call89  
+out.call90 out.call91 out.call92  out.call93 out.call94 out.call95 out.call96 out.call97 out.call98 out.call99 out.call00 out.call01
+out.call02 out.call03 out.call04 out.call05 out.call06 out.call07 
+out.call08 out.call09 out.call10 out.call11 out.call12 out.call13	;
+run;
