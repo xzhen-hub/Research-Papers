@@ -1,0 +1,5443 @@
+ 
+/**Project: Banking power and bank IPO*****/
+/**Created date: 06/2016**/
+/**Updated date: 7/26/2016**/
+/**Code by: Xinting Zhen**/
+ 
+ 
+ /******Variable Definition******************/
+ /*********************************************
+ stcnty:The state and county FIPS code associated with the headquarters location of the institution.
+ stcntybr:The state and county FIPS code associated with the specific branch location.
+ stnumbr:The FIPS number of the state in which the branch is physically located.
+ 
+ DEPDOM: Total domestic deposits of the institution as of June 30.
+ DEPSUM: Total deposits of the institution as of June 30.
+ DEPSUMBR: Branch office deposits as of June 30
+ 
+ brnum:Numerical reference to identify a branch office within one institution
+ 
+ CNTYNUMB: County number that corresponds to the county in which the branch is located.
+ 
+ SIMS_Established Date:The date that the branch location was established.
+ SIMS_Latititude:The lattitude of the branch's physical location.
+ SIMS_Longitude:The longitude of the branch's physical location
+ 
+ RSSDHCR: The unique number assigned by the Federal Reserve Board (FRB) to the top regulatory bank holding company.
+ RSSDID: The unique number assigned by the Federal Reserve Board (FRB) to the institution.
+ 
+ CERT:The certificate number assigned to an institution for deposit insurance.
+ BRNUM: Numerical reference to identify a branch office within one institution
+ BKMO: Main office / branch identifier; Main office  = 1, branch = 0
+ UNINUMBR:The unique number associated with a specific physical location of a branch.  This number remains with this location over time, regardless of ownership.
+ 
+ namefull:Institution name.
+ namebr:Branch name.
+ namehcr:The name of the headquarters of the top regulatory bank holding company.
+ 
+ **********************************************/
+
+ /*************************new variables generated*********************************/
+ /*******
+ 1. depsum_cnty: branch deposit @ county level
+ 2. depsum_rssd: branch deposit @ rssd level
+ 3. TD_rssdstate: rssd deposit @ state level (by stnumbr)
+ 4. distance: the distance between main office and branches
+ 5. disRSSD_br: weighted average of distance in miles between a facility and its branches
+ 6. TD_state: branch deposit  state level
+ 7. dep_dispersion: deposit dispersion measure
+ 8. div_index_st: generate geographic diversification at state level
+ 
+ ********/
+ 
+ 
+ 
+ 
+ 
+clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_1994.csv
+ save all_1994, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1994
+ 
+
+ keep year brnum namefull stalpbr stname stnumbr cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+codebook stnumbr
+/************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_1994, replace
+
+
+use all_1994
+sort rssdid year
+joinby stcntybr year using depsumcnty_1994, unm (master)
+drop _merge
+save all_1994_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1994_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_1994, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1994_dep
+ joinby rssdid using deprssd_1994, unm(master)
+ drop _merge
+ save all_1994_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_1994_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 1994_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_1994, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1994_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_1994, unm(master)
+drop _merge
+save 1994_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 1994_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+
+ 
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_94, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 1994_dis_dep, replace
+
+ 
+ 
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 1994_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 1994_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_94, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+ joinby rssdid using TD_rssdstate_94, unm(master)
+ drop _merge
+ save 1994_diversity, replace
+ 
+ 
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 1994_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_94, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+ joinby rssdid using distance_median_94, unm(master)
+ drop _merge
+ save 1994_diversity, replace
+ 
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 1994_diversity, replace
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 1994_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ 
+ /***calculate total deposits of each BHC at state level***/
+ 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 1994_diversity, replace
+ 
+ 
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_94, replace ///59 obs**/
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+ joinby rssdhcr using TD_BHCstate_94, unm(master)
+ drop _merge
+ save 1994_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ save 1994_diversity, replace
+ 
+ 
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 1994_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr year)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1994_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ save 1994_diversity, replace
+ 
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ 
+ 
+ keep year rssdid rssdhcr stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 1994_div_index, replace
+ 
+  /*************************************************************************/
+ /*******************************YEAR 1995*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_1995.csv
+ save all_1995, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1995
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+ 
+/************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_1995, replace
+
+
+use all_1995
+sort rssdid year
+joinby stcntybr year using depsumcnty_1995, unm (master)
+drop _merge
+save all_1995_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1995_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_1995, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1995_dep
+ joinby rssdid using deprssd_1995, unm(master)
+ drop _merge
+ save all_1995_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_1995_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 1995_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_1995, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1995_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_1995, unm(master)
+drop _merge
+save 1995_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 1995_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_95, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 1995_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 1995_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 1995_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_95, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+ joinby rssdid using TD_rssdstate_95, unm(master)
+ drop _merge
+ save 1995_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 1995_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_95, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+ joinby rssdid using distance_median_95, unm(master)
+ drop _merge
+ save 1995_diversity, replace
+ 
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 1995_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 1995_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 1995_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_95, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+ joinby rssdhcr using TD_BHCstate_95, unm(master)
+ drop _merge
+ save 1995_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ save 1995_diversity, replace
+ 
+ 
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 1995_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1995_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ save 1995_diversity, replace
+ 
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ 
+ 
+ keep year rssdid rssdhcr stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 1995_div_index, replace
+ 
+ 
+ 
+ /*************************************************************************/
+ /*******************************YEAR 1996*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_1996.csv
+ save all_1996, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1996
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+
+ /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_1996, replace
+
+
+use all_1996
+sort rssdid year
+joinby stcntybr year using depsumcnty_1996, unm (master)
+drop _merge
+save all_1996_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1996_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_1996, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1996_dep
+ joinby rssdid using deprssd_1996, unm(master)
+ drop _merge
+ save all_1996_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_1996_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 1996_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_1996, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1996_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_1996, unm(master)
+drop _merge
+save 1996_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 1996_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_96, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 1996_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 1996_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 1996_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_96, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+ joinby rssdid using TD_rssdstate_96, unm(master)
+ drop _merge
+ save 1996_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 1996_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_96, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+ joinby rssdid using distance_median_96, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 1996_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 1996_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 1996_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_96, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+ joinby rssdhcr using TD_BHCstate_96, unm(master)
+ drop _merge
+ save 1996_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 1996_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1996_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr  stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 1996_div_index, replace
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 1997*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_1997.csv
+ save all_1997, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1997
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+ /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_1997, replace
+
+
+use all_1997
+sort rssdid year
+joinby stcntybr year using depsumcnty_1997, unm (master)
+drop _merge
+save all_1997_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1997_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_1997, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1997_dep
+ joinby rssdid using deprssd_1997, unm(master)
+ drop _merge
+ save all_1997_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_1997_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 1997_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_1997, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1997_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_1997, unm(master)
+drop _merge
+save 1997_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 1997_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_97, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 1997_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 1997_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 1997_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_97, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+ joinby rssdid using TD_rssdstate_97, unm(master)
+ drop _merge
+ save 1997_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 1997_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_97, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+ joinby rssdid using distance_median_97, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 1997_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 1997_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 1997_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_97, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+ joinby rssdhcr using TD_BHCstate_97, unm(master)
+ drop _merge
+ save 1997_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 1997_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1997_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr  stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 1997_div_index, replace
+ 
+ 
+  
+  /*************************************************************************/
+ /*******************************YEAR 1998*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_1998.csv
+ save all_1998, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1998
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+  /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_1998, replace
+
+
+use all_1998
+sort rssdid year
+joinby stcntybr year using depsumcnty_1998, unm (master)
+drop _merge
+save all_1998_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1998_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_1998, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1998_dep
+ joinby rssdid using deprssd_1998, unm(master)
+ drop _merge
+ save all_1998_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_1998_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 1998_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_1998, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1998_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_1998, unm(master)
+drop _merge
+save 1998_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 1998_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_98, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 1998_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 1998_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 1998_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_98, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+ joinby rssdid using TD_rssdstate_98, unm(master)
+ drop _merge
+ save 1998_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 1998_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_98, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+ joinby rssdid using distance_median_98, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 1998_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 1998_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 1998_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_98, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+ joinby rssdhcr using TD_BHCstate_98, unm(master)
+ drop _merge
+ save 1998_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 1998_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1998_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr  stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 1998_div_index, replace
+ 
+ 
+ 
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 1999*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_1999.csv
+ save all_1999, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1999
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+ /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_1999, replace
+
+
+use all_1999
+sort rssdid year
+joinby stcntybr year using depsumcnty_1999, unm (master)
+drop _merge
+save all_1999_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1999_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_1999, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1999_dep
+ joinby rssdid using deprssd_1999, unm(master)
+ drop _merge
+ save all_1999_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_1999_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 1999_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_1999, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_1999_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_1999, unm(master)
+drop _merge
+save 1999_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 1999_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_99, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 1999_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 1999_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 1999_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_99, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+ joinby rssdid using TD_rssdstate_99, unm(master)
+ drop _merge
+ save 1999_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 1999_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_99, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+ joinby rssdid using distance_median_99, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 1999_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 1999_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 1999_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_99, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+ joinby rssdhcr using TD_BHCstate_99, unm(master)
+ drop _merge
+ save 1999_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 1999_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 1999_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr  stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 1999_div_index, replace
+ 
+ 
+ 
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 2000*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_2000.csv
+ save all_2000, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2000
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+  /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_2000, replace
+
+
+use all_2000
+sort rssdid year
+joinby stcntybr year using depsumcnty_2000, unm (master)
+drop _merge
+save all_2000_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2000_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_2000, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2000_dep
+ joinby rssdid using deprssd_2000, unm(master)
+ drop _merge
+ save all_2000_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_2000_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 2000_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_2000, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2000_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_2000, unm(master)
+drop _merge
+save 2000_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 2000_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_2000, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 2000_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 2000_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 2000_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_2000, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+ joinby rssdid using TD_rssdstate_2000, unm(master)
+ drop _merge
+ save 2000_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 2000_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_2000, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+ joinby rssdid using distance_median_2000, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 2000_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 2000_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 2000_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_2000, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+ joinby rssdhcr using TD_BHCstate_2000, unm(master)
+ drop _merge
+ save 2000_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 2000_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2000_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr  stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 2000_div_index, replace
+ 
+ 
+ 
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 2001*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_2001.csv
+ save all_2001, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2001
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+  /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_2001, replace
+
+
+use all_2001
+sort rssdid year
+joinby stcntybr year using depsumcnty_2001, unm (master)
+drop _merge
+save all_2001_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2001_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_2001, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2001_dep
+ joinby rssdid using deprssd_2001, unm(master)
+ drop _merge
+ save all_2001_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_2001_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 2001_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_2001, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2001_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_2001, unm(master)
+drop _merge
+save 2001_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 2001_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_2001, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 2001_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 2001_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 2001_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_2001, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+ joinby rssdid using TD_rssdstate_2001, unm(master)
+ drop _merge
+ save 2001_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 2001_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_2001, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+ joinby rssdid using distance_median_2001, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 2001_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 2001_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 2001_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_2001, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+ joinby rssdhcr using TD_BHCstate_2001, unm(master)
+ drop _merge
+ save 2001_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 2001_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2001_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr  stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 2001_div_index, replace
+ 
+ 
+ 
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 2002*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_2002.csv
+ save all_2002, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2002
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+  /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_2002, replace
+
+
+use all_2002
+sort rssdid year
+joinby stcntybr year using depsumcnty_2002, unm (master)
+drop _merge
+save all_2002_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2002_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_2002, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2002_dep
+ joinby rssdid using deprssd_2002, unm(master)
+ drop _merge
+ save all_2002_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_2002_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 2002_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_2002, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2002_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_2002, unm(master)
+drop _merge
+save 2002_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 2002_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_2002, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 2002_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 2002_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 2002_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_2002, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+ joinby rssdid using TD_rssdstate_2002, unm(master)
+ drop _merge
+ save 2002_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 2002_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_2002, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+ joinby rssdid using distance_median_2002, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 2002_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 2002_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 2002_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_2002, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+ joinby rssdhcr using TD_BHCstate_2002, unm(master)
+ drop _merge
+ save 2002_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 2002_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2002_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr  stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 2002_div_index, replace
+ 
+ 
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 2003*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_2003.csv
+ save all_2003, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2003
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+  /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_2003, replace
+
+
+use all_2003
+sort rssdid year
+joinby stcntybr year using depsumcnty_2003, unm (master)
+drop _merge
+save all_2003_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2003_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_2003, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2003_dep
+ joinby rssdid using deprssd_2003, unm(master)
+ drop _merge
+ save all_2003_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_2003_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 2003_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_2003, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2003_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_2003, unm(master)
+drop _merge
+save 2003_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 2003_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_2003, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 2003_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 2003_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 2003_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_2003, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+ joinby rssdid using TD_rssdstate_2003, unm(master)
+ drop _merge
+ save 2003_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 2003_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_2003, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+ joinby rssdid using distance_median_2003, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 2003_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 2003_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 2003_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_2003, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+ joinby rssdhcr using TD_BHCstate_2003, unm(master)
+ drop _merge
+ save 2003_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 2003_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2003_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr  stnumbr stalpbr stname stcntybr stcnty cntynumb  disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 2003_div_index, replace
+ 
+ 
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 2004*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_2004.csv
+ save all_2004, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2004
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+ /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_2004, replace
+
+
+use all_2004
+sort rssdid year
+joinby stcntybr year using depsumcnty_2004, unm (master)
+drop _merge
+save all_2004_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2004_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_2004, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2004_dep
+ joinby rssdid using deprssd_2004, unm(master)
+ drop _merge
+ save all_2004_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_2004_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 2004_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_2004, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2004_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_2004, unm(master)
+drop _merge
+save 2004_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 2004_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_2004, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 2004_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 2004_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 2004_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_2004, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+ joinby rssdid using TD_rssdstate_2004, unm(master)
+ drop _merge
+ save 2004_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 2004_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_2004, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+ joinby rssdid using distance_median_2004, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 2004_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 2004_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 2004_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_2004, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+ joinby rssdhcr using TD_BHCstate_2004, unm(master)
+ drop _merge
+ save 2004_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 2004_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2004_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr stnumbr stalpbr stname stcntybr stcnty cntynumb  disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 2004_div_index, replace
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 2005*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_2005.csv
+ save all_2005, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2005
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+ /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_2005, replace
+
+
+use all_2005
+sort rssdid year
+joinby stcntybr year using depsumcnty_2005, unm (master)
+drop _merge
+save all_2005_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2005_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_2005, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2005_dep
+ joinby rssdid using deprssd_2005, unm(master)
+ drop _merge
+ save all_2005_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_2005_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 2005_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_2005, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2005_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_2005, unm(master)
+drop _merge
+save 2005_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 2005_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_2005, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 2005_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 2005_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 2005_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_2005, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+ joinby rssdid using TD_rssdstate_2005, unm(master)
+ drop _merge
+ save 2005_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 2005_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_2005, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+ joinby rssdid using distance_median_2005, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 2005_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 2005_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 2005_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_2005, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+ joinby rssdhcr using TD_BHCstate_2005, unm(master)
+ drop _merge
+ save 2005_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 2005_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2005_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr  stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 2005_div_index, replace
+ 
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 2006*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_2006.csv
+ save all_2006, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2006
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+ /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_2006, replace
+
+
+use all_2006
+sort rssdid year
+joinby stcntybr year using depsumcnty_2006, unm (master)
+drop _merge
+save all_2006_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2006_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_2006, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2006_dep
+ joinby rssdid using deprssd_2006, unm(master)
+ drop _merge
+ save all_2006_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_2006_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 2006_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_2006, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2006_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_2006, unm(master)
+drop _merge
+save 2006_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 2006_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_2006, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 2006_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 2006_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 2006_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_2006, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+ joinby rssdid using TD_rssdstate_2006, unm(master)
+ drop _merge
+ save 2006_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 2006_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_2006, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+ joinby rssdid using distance_median_2006, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 2006_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 2006_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 2006_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_2006, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+ joinby rssdhcr using TD_BHCstate_2006, unm(master)
+ drop _merge
+ save 2006_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 2006_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2006_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr  stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 2006_div_index, replace
+ 
+ 
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 2007*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_2007.csv
+ save all_2007, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2007
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+ /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_2007, replace
+
+
+use all_2007
+sort rssdid year
+joinby stcntybr year using depsumcnty_2007, unm (master)
+drop _merge
+save all_2007_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2007_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_2007, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2007_dep
+ joinby rssdid using deprssd_2007, unm(master)
+ drop _merge
+ save all_2007_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_2007_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 2007_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_2007, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2007_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_2007, unm(master)
+drop _merge
+save 2007_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 2007_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_2007, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 2007_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 2007_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 2007_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_2007, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+ joinby rssdid using TD_rssdstate_2007, unm(master)
+ drop _merge
+ save 2007_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 2007_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_2007, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+ joinby rssdid using distance_median_2007, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 2007_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 2007_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 2007_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_2007, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+ joinby rssdhcr using TD_BHCstate_2007, unm(master)
+ drop _merge
+ save 2007_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 2007_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2007_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr stnumbr stalpbr stname stcntybr stcnty cntynumb  disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 2007_div_index, replace
+ 
+ 
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 2008*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_2008.csv
+ save all_2008, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2008
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+  /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_2008, replace
+
+
+use all_2008
+sort rssdid year
+joinby stcntybr year using depsumcnty_2008, unm (master)
+drop _merge
+save all_2008_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2008_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_2008, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2008_dep
+ joinby rssdid using deprssd_2008, unm(master)
+ drop _merge
+ save all_2008_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_2008_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 2008_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_2008, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2008_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_2008, unm(master)
+drop _merge
+save 2008_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 2008_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_2008, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 2008_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 2008_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 2008_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_2008, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+ joinby rssdid using TD_rssdstate_2008, unm(master)
+ drop _merge
+ save 2008_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 2008_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_2008, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+ joinby rssdid using distance_median_2008, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 2008_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 2008_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 2008_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_2008, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+ joinby rssdhcr using TD_BHCstate_2008, unm(master)
+ drop _merge
+ save 2008_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 2008_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2008_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr stnumbr stalpbr stname stcntybr stcnty cntynumb  disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 2008_div_index, replace
+ 
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 2009*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_2009.csv
+ save all_2009, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2009
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+  /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_2009, replace
+
+
+use all_2009
+sort rssdid year
+joinby stcntybr year using depsumcnty_2009, unm (master)
+drop _merge
+save all_2009_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2009_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_2009, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2009_dep
+ joinby rssdid using deprssd_2009, unm(master)
+ drop _merge
+ save all_2009_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_2009_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 2009_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_2009, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2009_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_2009, unm(master)
+drop _merge
+save 2009_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 2009_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_2009, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save 2009_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save 2009_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save 2009_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_2009, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+ joinby rssdid using TD_rssdstate_2008, unm(master)
+ drop _merge
+ save 2009_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save 2009_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_2009, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+ joinby rssdid using distance_median_2009, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save 2009_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save 2009_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save 2009_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_2009, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+ joinby rssdhcr using TD_BHCstate_2009, unm(master)
+ drop _merge
+ save 2009_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save 2009_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use 2009_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr  stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 2009_div_index, replace
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 2010*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_2010.csv
+ save all_2010, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2010
+replace depsumbr=subinstr(depsumbr,",","",.) 
+destring depsumbr, replace
+save all_2010, replace
+
+  
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2010
+ 
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+  /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_2010, replace
+
+
+use all_2010
+sort rssdid year
+joinby stcntybr year using depsumcnty_2010, unm (master)
+drop _merge
+save all_2010_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2010_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_2010, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2010_dep
+ joinby rssdid using deprssd_2010, unm(master)
+ drop _merge
+ save all_2010_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_2010_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 2010_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_2010, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2010_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_2010, unm(master)
+drop _merge
+save  2010_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 2010_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_2010, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save  2010_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save  2010_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save  2010_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_2010, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+ joinby rssdid using TD_rssdstate_2010, unm(master)
+ drop _merge
+ save  2010_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save  2010_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_2010, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+ joinby rssdid using distance_median_2010, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save  2010_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save  2010_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save  2010_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_2010, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+ joinby rssdhcr using TD_BHCstate_2010, unm(master)
+ drop _merge
+ save  2010_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save  2010_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2010_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr  stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 2010_div_index, replace
+ 
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 2011*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_2011.csv
+ save all_2011, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2011
+replace depsumbr=subinstr(depsumbr,",","",.) 
+destring depsumbr, replace
+save all_2011, replace
+
+  
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2011
+
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+  /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_2011, replace
+
+
+use all_2011
+sort rssdid year
+joinby stcntybr year using depsumcnty_2011, unm (master)
+drop _merge
+save all_2011_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2011_dep
+ collapse (sum) depsum_rssd=depsumbr  , by (rssdid year) //13002 obs//
+ save deprssd_2011, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2011_dep
+ joinby rssdid using deprssd_2011, unm(master)
+ drop _merge
+ save all_2011_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_2011_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 2011_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_2011, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2011_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_2011, unm(master)
+drop _merge
+save  2011_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 2011_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_2011, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save  2011_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save  2011_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save  2011_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_2011, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+ joinby rssdid using TD_rssdstate_2011, unm(master)
+ drop _merge
+ save  2011_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save  2011_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_2011, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+ joinby rssdid using distance_median_2011, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save  2011_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save  2011_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save  2011_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_2011, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+ joinby rssdhcr using TD_BHCstate_2011, unm(master)
+ drop _merge
+ save  2011_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save  2011_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2011_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr  stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 2011_div_index, replace
+ 
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 2012*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_2012.csv
+ save all_2012, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2012
+replace depsumbr=subinstr(depsumbr,",","",.) 
+destring depsumbr, replace
+save all_2012, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2012
+
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+  /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_2012, replace
+
+
+use all_2012
+sort rssdid year
+joinby stcntybr year using depsumcnty_2012, unm (master)
+drop _merge
+save all_2012_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2012_dep
+ collapse (sum) depsum_rssd=depsumbr, by (rssdid year) //13002 obs//
+ save deprssd_2012, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2012_dep
+ joinby rssdid using deprssd_2012, unm(master)
+ drop _merge
+ save all_2012_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_2012_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 2012_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_2012, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2012_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_2012, unm(master)
+drop _merge
+save  2012_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 2012_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_2012, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save  2012_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save  2012_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save  2012_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_2012, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+ joinby rssdid using TD_rssdstate_2012, unm(master)
+ drop _merge
+ save  2012_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save  2012_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_2012, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+ joinby rssdid using distance_median_2012, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save  2012_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save  2012_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save  2012_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_2012, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+ joinby rssdhcr using TD_BHCstate_2012, unm(master)
+ drop _merge
+ save  2012_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save  2012_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2012_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr  stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 2012_div_index, replace
+ 
+ 
+  /*************************************************************************/
+ /*******************************YEAR 2013*******************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ import delimited D:\Research\SOD\ALL_2013.csv
+ save all_2013, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2013
+replace depsumbr=subinstr(depsumbr,",","",.) 
+destring depsumbr, replace
+save all_2013, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2013
+
+
+ keep year brnum  cntynumb depsum depsumbr  rssdhcr rssdid stcnty stcntybr stnumbr zip 
+  /************generate sum of branch deposit at county level ************/
+collapse (sum) depsum_cnty=depsumbr , by (stcntybr year)
+duplicates report stcntybr /**3209 obs***/
+save depsumcnty_2013, replace
+
+
+use all_2013
+sort rssdid year
+joinby stcntybr year using depsumcnty_2013, unm (master)
+drop _merge
+save all_2013_dep, replace
+
+/************generate sum of deposts at facility (rssdid) level*******************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2013_dep
+ collapse (sum) depsum_rssd=depsumbr, by (rssdid year) //13002 obs//
+ save deprssd_2013, replace
+ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2013_dep
+ joinby rssdid using deprssd_2013, unm(master)
+ drop _merge
+ save all_2013_dep, replace
+ 
+
+/*****************calculate the distance between headquarters and branches**********/
+/**********************************************************************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  all_2013_dep
+ 
+
+ keep year rssdhcr rssdid cert brnum bkmo uninumbr sims_latitude sims_longitude depsumbr depsum stcnty stcntybr stnumbr namebr namehcr namefull
+ save 2013_only, replace
+
+ /***generate new variables represent latitude and longitude if bkmo=1(main office)**********/
+sort rssdid year
+by rssdid year: gen latitude_main1=sims_latitude if bkmo==1
+by rssdid year: gen longitude_main1=sims_longitude if bkmo==1
+collapse (sum) latitude_main=latitude_main1 longitude_main=longitude_main1, by (rssdid year)
+duplicates report rssdid
+save lalomain_rssd_2013, replace
+
+
+/*********join the all file with lalo file to generate distance******/ 
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use all_2013_dep
+sort rssdid year
+joinby rssdid year using  lalomain_rssd_2013, unm(master)
+drop _merge
+save  2013_dis_dep, replace
+ 
+ 
+ /*************use latitude and longitude to calculate the distance between main office and branches****/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_dis_dep
+gen long_br = atan(1)/45 * sims_latitude
+gen lati_br = atan(1)/45 * sims_longitude
+gen long_main = atan(1)/45 * latitude_main
+gen lati_main = atan(1)/45 * latitude_main
+
+gen dlon=long_main-long_br
+gen dlat=lati_main-lati_br
+gen a=(sin(dlat/2))^2 + cos(lati_br) * cos(lati_main) * (sin(dlon/2))^2
+gen c= 2 * atan2(sqrt(a),sqrt(1-a))
+gen distance=3957 * c
+/***use the other method to verify the result of distance, it's correct 
+ gen distance2=2*3961*asin(sqrt(sin(dlat/2))^2)+cos(lati_br) * cos(lati_main)*(sin(dlon/2))^2
+ drop distance2
+ ***/
+ codebook distance
+ save 2013_dis_dep, replace
+ 
+ /**********calcualte bank diversification at rssdid level****************/      /**followed paper: Saiying Deng & Elyas Elyasiani, JMCB 2008**/
+ /****************************generate depsum_BHC at BHC level**********************************/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_dis_dep
+ collapse (sum) depsum_BHC=depsumbr  , by (rssdhcr year)
+save depsum_BHC_2013, replace //5450 obs**/
+
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_dis_dep
+ joinby rssdhcr using depsum_BHC, unm(master)
+ drop _merge
+ save  2013_dis_dep, replace
+
+ 
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /*******@RSSD level*************/
+ /***1.weighted average of distance in miles between a facility and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_dis_dep
+gen disRSSD_br1=depsumbr/depsum_rssd*distance
+collapse (sum) disRSSD_br=disRSSD_br1, by (rssdid)
+save disRSSD_br, replace
+
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_dis_dep
+ joinby rssdid using disRSSD_br,unm(master)
+ drop _merge
+  save  2013_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each rssd facility in each state***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+ collapse (sum) TD_state1=depsumbr, by (rssdid stnumbr)
+ save TD_state1, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+ joinby rssdid stnumbr using TD_state1, unm(master)
+ drop _merge
+ save  2013_diversity, replace
+ 
+ 
+ /***calculate the sum of the deposits in all of the state where each rssd operates***/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+ collapse (sum) TD_rssdstate=TD_state1, by (rssdid )
+save TD_rssdstate_2013, replace
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+ joinby rssdid using TD_rssdstate_2013, unm(master)
+ drop _merge
+ save  2013_diversity, replace
+ 
+ /***calculate deposit dispersion measure***/
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+ gen dep_fraction_RSSD1=(TD_state1/TD_rssdstate)^2
+ collapse (sum) dep_fraction_RSSD=dep_fraction_RSSD1, by (rssdid year)
+ save dep_fraction_RSSD, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+ joinby rssdid using dep_fraction_RSSD, unm(master)
+ drop _merge
+ gen dep_dispersion_RSSD=1-dep_fraction_RSSD
+ save  2013_diversity, replace
+ 
+ collapse (median) distance_median=distance, by (rssdid year)
+ save distance_median_2013, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+ joinby rssdid using distance_median_2013, unm(master)
+ drop _merge
+ gen div_index_RSSDst=dep_dispersion_RSSD*(disRSSD_br/distance_median)
+ save  2013_diversity, replace
+ 
+
+ /*******distance-adjusted ,activity-weighted, deposit dispersion index as a measure of geographic diversification********/
+ /********@BHC level***************/
+ /***1.weighted average of distance in miles between a BHC and its branches****/
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+gen disBHC_br1=depsumbr/depsum_BHC*distance
+collapse (sum) disBHC_br=disBHC_br1, by (rssdhcr)
+save disBHC_br, replace
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+ joinby rssdhcr using disBHC_br,unm(master)
+ drop _merge
+  save  2013_diversity, replace
+
+ 
+ /****2.deposit dispersion measure, similar to HHI****/
+ /***calculate total deposits of each BHC at state level***/
+
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+ collapse (sum) TD_state2=depsumbr, by (rssdhcr stnumbr)
+ save TD_state2, replace
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+ joinby rssdhcr stnumbr using TD_state2, unm(master)
+ drop _merge
+ save  2013_diversity, replace
+ 
+ /***calculate the sum of the deposits in all of the state where each BHC operates***/
+
+ clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+ collapse (sum) TD_BHCstate=TD_state2, by (rssdhcr)
+ save TD_BHCstate_2013, replace 
+ 
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+ joinby rssdhcr using TD_BHCstate_2013, unm(master)
+ drop _merge
+ save  2013_diversity, replace
+ 
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+ gen dep_fraction_BHC1=(TD_state2/TD_BHCstate)^2
+ collapse (sum) dep_fraction_BHC=dep_fraction_BHC1, by (rssdhcr)
+ save dep_fraction_BHC, replace
+ 
+  clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+ joinby rssdhcr using dep_fraction_BHC, unm(master)
+ drop _merge
+ gen dep_dispersion_BHC=1-dep_fraction_BHC
+ save  2013_diversity, replace
+ 
+ collapse (median) distance_median_BHC=distance, by (rssdhcr)
+ save distance_median_BHC, replace
+ 
+ /****3. generate geographic diversification at state level***********/
+   clear
+ cd "D:\Research\Banking power and IPO\dataneed"
+ use  2013_diversity
+ joinby rssdhcr using distance_median_BHC, unm(master)
+ drop _merge
+ gen div_index_BHCst=dep_dispersion_BHC*(disBHC_br/distance_median_BHC)
+ keep year rssdid rssdhcr  stnumbr stalpbr stname stcntybr stcnty cntynumb disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  disBHC_br dep_fraction_BHC div_index_BHCst
+ save 2013_div_index, replace
+ 
+ 
+ /***4. Append years from 1994 to 2013***/
+ clear
+  cd "D:\Research\Banking power and IPO\dataneed"
+  append using 1994_div_index 1995_div_index 1996_div_index  1997_div_index 1998_div_index 1999_div_index 2000_div_index 2001_div_index 2002_div_index ///
+  2003_div_index 2004_div_index 2005_div_index 2006_div_index 2007_div_index 2008_div_index 2009_div_index 2010_div_index 2011_div_index 2012_div_index 2013_div_index
+  save all_div_index, replace
+  count  ///1802287**/
+  
+  /******Contain rssdid only**************/
+   clear
+  cd "D:\Research\Banking power and IPO\dataneed"
+  use all_div_index
+  count
+  duplicates drop year rssdid, force 
+  ///189325**/
+  keep year rssdid  stnumbr stalpbr stname stcntybr stcnty cntynumb   disRSSD_br brnum dep_dispersion_RSSD div_index_RSSDst  
+  drop if div_index_RSSDst<0  
+  //187810**/
+  codebook div_index_RSSDst 
+save rssd_div_index, replace
+
+
+/**************contain BHCid only************/
+   clear
+  cd "D:\Research\Banking power and IPO\dataneed"
+  use all_div_index
+  count
+  duplicates drop year rssdhcr, force
+  count
+  /**101507****/
+  save BHC_div_index, replace
